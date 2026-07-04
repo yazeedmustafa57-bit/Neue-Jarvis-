@@ -1,18 +1,17 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 
 class NeonContainer extends StatefulWidget {
-  final String title;
   final Widget child;
+  final String? title;
+  final double? width;
   final double? height;
-  final EdgeInsetsGeometry? padding;
 
   const NeonContainer({
     super.key,
-    required this.title,
     required this.child,
+    this.title,
+    this.width,
     this.height,
-    this.padding,
   });
 
   @override
@@ -22,76 +21,69 @@ class NeonContainer extends StatefulWidget {
 class _NeonContainerState extends State<NeonContainer>
     with SingleTickerProviderStateMixin {
   late AnimationController _pulseController;
-  late Animation<double> _pulseAnim;
+  late Animation<double> _pulseAnimation;
 
   @override
   void initState() {
     super.initState();
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
+      duration: const Duration(milliseconds: 2000),
     )..repeat(reverse: true);
-    _pulseAnim = Tween<double>(begin: 0.0, end: 1.0).animate(_pulseController);
+    _pulseAnimation = Tween<double>(begin: 0.6, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: _pulseAnim,
+      animation: _pulseAnimation,
       builder: (context, child) {
-        final pulse = 0.5 + 0.5 * sin(_pulseAnim.value * pi);
-        final alpha = 40 + (30 * pulse).toInt();
-        final alpha2 = (alpha * 0.5).toInt();
-
+        final opacity = _pulseAnimation.value;
         return Container(
+          width: widget.width,
           height: widget.height,
-          padding: widget.padding ?? const EdgeInsets.all(2),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: Color.fromRGBO(255, 120, 20, alpha),
-              width: 2,
+              color: Color.fromRGBO(255, 120, 20, (80 * opacity).toInt()),
+              width: 1.0,
             ),
+            borderRadius: BorderRadius.circular(4.0),
+            color: const Color.fromRGBO(0, 0, 0, 160),
           ),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: Color.fromRGBO(255, 180, 60, alpha2),
-                width: 1,
-              ),
-              color: const Color.fromRGBO(8, 2, 12, 200),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (widget.title != null)
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: const BoxDecoration(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8.0, vertical: 4.0),
+                  decoration: BoxDecoration(
+                    color: const Color.fromRGBO(255, 120, 20, 30),
                     border: Border(
                       bottom: BorderSide(
-                        color: Color.fromRGBO(255, 120, 20, 80),
-                        width: 1,
+                        color: Color.fromRGBO(
+                            255, 120, 20, (60 * opacity).toInt()),
+                        width: 1.0,
                       ),
                     ),
                   ),
                   child: Text(
-                    '  ▸ ${widget.title}',
-                    style: const TextStyle(
-                      color: Color.fromRGBO(255, 140, 30, 200),
-                      fontSize: 14,
+                    widget.title!,
+                    style: TextStyle(
+                      color: Color.fromRGBO(255, 140, 30, (200 * opacity).toInt()),
+                      fontSize: 14.0,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'Courier',
                     ),
                   ),
                 ),
-                Expanded(child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: widget.child,
-                )),
-              ],
-            ),
+              Expanded(child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: widget.child,
+              )),
+            ],
           ),
         );
       },

@@ -2,9 +2,9 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 class BrainNode {
-  double x, y, z;
-  double phase, speed, amp;
-  double px, py; // projected 2D
+  double x = 0, y = 0, z = 0;
+  double phase = 0, speed = 0, amp = 0;
+  double px = 0, py = 0; // projected 2D
 
   BrainNode(Random rng) {
     // Anatomisch inspirierte Gehirnform (2 Hemisphären)
@@ -92,21 +92,21 @@ class _BrainHologramState extends State<BrainHologram>
   }
 
   @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return CustomPaint(
       painter: _BrainPainter(
         nodes: _nodes,
         connections: _connections,
-        time: _controller.value * 60,
+        time: DateTime.now().millisecondsSinceEpoch / 1000,
       ),
       size: Size.infinite,
     );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
   }
 }
 
@@ -114,106 +114,101 @@ class _BrainPainter extends CustomPainter {
   final List<BrainNode> nodes;
   final List<List<int>> connections;
   final double time;
-  final double rotationY;
-  final double rotationX;
 
   _BrainPainter({
     required this.nodes,
     required this.connections,
     required this.time,
-  }) : rotationY = time * 0.25,
-       rotationX = 3.0 * sin(time * 0.06);
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final scale = size.shortestSide * 0.35;
-    final cx = size.width / 2;
-    final cy = size.height / 2;
+    final centerX = size.width / 2;
+    final centerY = size.height / 2;
+    final scale = size.shortestSide * 0.38;
+    final rotation = time * 0.08;
 
-    final cosR = cos(rotationY * pi / 180);
-    final sinR = sin(rotationY * pi / 180);
-    final cosX = cos(rotationX * pi / 180);
-    final sinX = sin(rotationX * pi / 180);
+    final cosR = cos(rotation);
+    final sinR = sin(rotation);
 
-    // Project nodes to 2D
-    for (int i = 0; i < nodes.length; i++) {
-      final n = nodes[i];
-      final t = time;
+    // Project nodes
+    for (final node in nodes) {
+      // Apply rotation (Y-axis)
+      final x1 = node.x * cosR - node.z * sinR;
+      final z1 = node.x * sinR + node.z * cosR;
+      final y1 = node.y;
 
-      // Organic breathing
-      final ax = n.amp * sin(t * 0.5 * n.speed + n.phase);
-      final ay = n.amp * sin(t * 0.7 * n.speed + n.phase * 1.3);
-      final az = n.amp * sin(t * 0.6 * n.speed + n.phase * 0.9);
+      // Apply slow bob
+      final bob = sin(time * node.speed + node.phase) * node.amp;
+      final x2 = x1;
+      final y2 = y1 + bob;
+      final z2 = z1;
 
-      var x = n.x + ax;
-      var y = n.y + ay;
-      var z = n.z + az;
-
-      // Rotate Y
-      var rx = x * cosR - z * sinR;
-      var rz = x * sinR + z * cosR;
-      x = rx;
-      z = rz;
-
-      // Rotate X
-      var ry = y * cosX - z * sinX;
-      var rz2 = y * sinX + z * cosX;
-      y = ry;
-      z = rz2;
-
-      n.px = cx + x * scale;
-      n.py = cy - y * scale;
+      // Perspective projection
+      final perspective = 3.0 / (3.0 + z2);
+      node.px = centerX + x2 * scale * perspective;
+      node.py = centerY - y2 * scale * perspective;
     }
 
-    // Sort nodes by Z for depth
-    final sortedIndices = List.generate(nodes.length, (i) => i);
-    sortedIndices.sort((a, b) => nodes[a].z.compareTo(nodes[b].z));
+    // Darkness gradient background
+    final bgPaint = Paint()..shader = RadialGradient(
+      colors: const [
+        Color.fromRGBO(20, 5, 0, 1),
+        Color.fromRGBO(8, 2, 12, 1),
+        Color.fromRGBO(8, 2, 12, 1),
+      ],
+      radius: 0.9,
+    ).createShader(Rect.fromCircle(center: Offset(centerX, centerY), radius: size.width * 0.5));
+    canvas.drawRect(Offset.zero & size, bgPaint);
 
     // Draw connections
     for (final pair in connections) {
-      final i = pair[0];
-      final j = pair[1];
-      final n1 = nodes[i];
-      final n2 = nodes[j];
+      final n1 = nodes[pair[0]];
+      final n2 = nodes[pair[1]];
+      final dx = n1.px - n2.px;
+      final dy = n1.py - n2.py;
+      final screenDist = sqrt(dx * dx + dy * dy);
 
-      final dx = n1.x - n2.x;
-      final dy = n1.y - n2.y;
-      final dz = n1.z - n2.z;
-      final dist = sqrt(dx * dx + dy * dy + dz * dz);
-
-      var alpha = (1.0 - dist / _connectionDist).clamp(0.0, 1.0);
-      final pulse = 0.5 + 0.5 * sin(time * 1.5 + n1.phase + n2.phase);
-      alpha *= (0.3 + 0.7 * pulse);
-
-      if (alpha < 0.05) continue;
-
-      final paint = Paint()
-        ..color = Color.fromRGBO(255, 120 + (60 * pulse).toInt(), 20, alpha * 0.4)
-        ..strokeWidth = 1.0;
-      canvas.drawLine(Offset(n1.px, n1.py), Offset(n2.px, n2.py), paint);
+      if (screenDist < size.shortestSide * 0.35) {
+        final alpha = ((1.0 - screenDist / (size.shortestSide * 0.35)) * 120).toInt().clamp(10, 120);
+        final paint = Paint()
+          ..color = Color.fromARGB(alpha, 255, 120, 30)
+          ..strokeWidth = 0.6;
+        canvas.drawLine(Offset(n1.px, n1.py), Offset(n2.px, n2.py), paint);
+      }
     }
 
     // Draw nodes
-    for (final i in sortedIndices) {
-      final n = nodes[i];
-      final pulse = 0.6 + 0.4 * sin(time * 2.0 + n.phase);
+    for (final node in nodes) {
+      final z = node.z;
+      final depth = (1.0 - (z + 2.0) / 4.0).clamp(0.0, 1.0);
+      final baseRadius = 1.2 + depth * 2.0;
+      final glowRadius = baseRadius * 3.0;
+      final alpha = (80 + (depth * 175).toInt()).clamp(30, 255);
+      final glowAlpha = (alpha * 0.3).toInt();
 
       // Glow
-      /*final glowPaint = Paint()
-        ..color = Color.fromRGBO(255, 140, 30, pulse * 0.15)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
-      canvas.drawCircle(Offset(n.px, n.py), 6.0, glowPaint);*/
+      final glowPaint = Paint()
+        ..color = Color.fromARGB(glowAlpha, 255, 140, 30)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+      canvas.drawCircle(Offset(node.px, node.py), glowRadius, glowPaint);
 
       // Core
       final corePaint = Paint()
-        ..color = Color.fromRGBO(
-          220 + (35 * pulse).toInt(),
-          120 + (80 * pulse).toInt(),
-          20,
-          0.6 + 0.4 * pulse,
-        );
-      canvas.drawCircle(Offset(n.px, n.py), 1.5 + 1.0 * pulse, corePaint);
+        ..color = Color.fromARGB(alpha, 255, 170, 50);
+      canvas.drawCircle(Offset(node.px, node.py), baseRadius, corePaint);
     }
+
+    // Central glow
+    final centerGlow = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color.fromRGBO(255, 100, 20, 40),
+          const Color.fromRGBO(255, 80, 10, 10),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromCircle(center: Offset(centerX, centerY), radius: size.width * 0.3));
+    canvas.drawRect(Offset.zero & size, centerGlow);
   }
 
   @override
