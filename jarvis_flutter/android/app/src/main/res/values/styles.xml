@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sci-Fi dark theme matching the JARVIS UI -->
+    <style name="Theme.Jarvis" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">#FF08020c</item>
+        <item name="android:statusBarColor">#FF08020c</item>
+        <item name="android:navigationBarColor">#FF08020c</item>
+        <item name="android:windowTranslucentStatus">false</item>
+        <item name="android:windowTranslucentNavigation">false</item>
+    </style>
+</resources>
