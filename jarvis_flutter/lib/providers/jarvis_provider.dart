@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import '../models/task.dart';
 import '../models/reminder.dart';
@@ -37,7 +38,18 @@ class JarvisProvider extends ChangeNotifier {
     try {
       await DatabaseService.database;
       await voiceService.initialize();
+
+      // Wire up voice callbacks
       voiceService.onCommand = _onVoiceCommand;
+      voiceService.onError = (error) {
+        addSystemMessage('⚠️ Sprachfehler: $error');
+        notifyListeners();
+      };
+      voiceService.onResult = (text) {
+        addSystemMessage('🎤 Erkannt: "$text"');
+        notifyListeners();
+      };
+
       await refreshTasks();
       await refreshReminders();
       _initialized = true;
@@ -55,9 +67,15 @@ class JarvisProvider extends ChangeNotifier {
   void _onVoiceCommand(String action) {
     if (action == 'shutdown') {
       stopVoice();
-      addSystemMessage('JARVIS wird beendet.');
+      addSystemMessage('🔄 JARVIS wird beendet. Tschüss!');
+      voiceService.speak('JARVIS wird beendet. Tschüss!');
+      // Delay shutdown to let TTS finish
+      Future.delayed(const Duration(seconds: 3), () {
+        SystemNavigator.pop();
+      });
       return;
     }
+
     final responses = {
       'youtube': 'Öffne YouTube.',
       'google': 'Öffne Google.',
@@ -67,18 +85,32 @@ class JarvisProvider extends ChangeNotifier {
       'notepad': 'Öffne Notepad.',
     };
     final reply = responses[action] ?? 'Befehl ausgeführt.';
+    addSystemMessage('🎤 Befehl erkannt: ${action.toUpperCase()}');
     voiceService.speak(reply);
     AppLauncher.execute(action);
-    addSystemMessage('🎤 Befehl: ${action}');
   }
 
   Future<void> toggleVoice() async {
     if (_voiceActive) {
       await voiceService.stopListening();
       _voiceActive = false;
+      addSystemMessage('🎤 Sprachsteuerung deaktiviert.');
     } else {
-      await voiceService.startListening();
-      _voiceActive = true;
+      addSystemMessage('🎤 Sprachsteuerung wird aktiviert …');
+      try {
+        await voiceService.startListening();
+        _voiceActive = voiceService.state == VoiceState.listening;
+        if (_voiceActive) {
+          addSystemMessage('🎤 Sprachsteuerung aktiv. Sage einen Befehl!');
+        } else if (voiceService.state == VoiceState.noPermission) {
+          addSystemMessage('⚠️ Keine Mikrofonberechtigung. Bitte in den App-Einstellungen erlauben.');
+        } else {
+          addSystemMessage('⚠️ Sprachsteuerung konnte nicht aktiviert werden.');
+        }
+      } catch (e) {
+        addSystemMessage('⚠️ Fehler: $e');
+        _voiceActive = false;
+      }
     }
     notifyListeners();
   }
@@ -106,10 +138,14 @@ class JarvisProvider extends ChangeNotifier {
       final reply = await AiService.askAi(prompt);
       _messages.removeLast();
       _messages.add(ChatMessage(text: reply, role: MessageRole.assistant));
+      // Speak the response if voice is active
+      if (_voiceActive) {
+        voiceService.speak(reply);
+      }
     } catch (e) {
       _messages.removeLast();
       _messages.add(ChatMessage(
-        text: '⚠️  $e',
+        text: '⚠️ $e',
         role: MessageRole.assistant,
       ));
     }
@@ -121,12 +157,16 @@ class JarvisProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void clearChat() => _messages.clear();
+  void clearChat() {
+    _messages.clear();
+    notifyListeners();
+  }
 
   // ── Tasks ──────────────────────────────────────────────────────────
   Future<void> addTask(String title, {String description = ''}) async {
     await DatabaseService.addTask(title, description: description);
     await refreshTasks();
+    addSystemMessage('📋 Aufgabe hinzugefügt: $title');
   }
 
   Future<void> completeTask(int id) async {
@@ -150,6 +190,7 @@ class JarvisProvider extends ChangeNotifier {
     await DatabaseService.addReminder(title,
         description: description, dueDate: dueDate);
     await refreshReminders();
+    addSystemMessage('🔔 Erinnerung hinzugefügt: $title');
   }
 
   Future<void> markReminderDone(int id) async {
