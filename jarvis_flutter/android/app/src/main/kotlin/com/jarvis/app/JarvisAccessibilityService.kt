@@ -1,6 +1,7 @@
 package com.jarvis.app
 
 import android.accessibilityservice.AccessibilityService
+import java.util.HashMap
 import android.accessibilityservice.GestureDescription
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -419,12 +420,20 @@ class JarvisAccessibilityService : AccessibilityService() {
             if (intent != null) {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 startActivity(intent)
-                mapOf<String, Any>("success" to true)
+                val m = HashMap<String, Any>()
+                m["success"] = true
+                m
             } else {
-                mapOf<String, Any>("success" to false, "error" to "App $packageName not installed")
+                val m = HashMap<String, Any>()
+                m["success"] = false
+                m["error"] = "App $packageName not installed"
+                m
             }
         } catch (e: Exception) {
-            mapOf<String, Any>("success" to false, "error" to e.message ?: "Unknown error")
+            val m = HashMap<String, Any>()
+            m["success"] = false
+            m["error"] = e.message ?: "Unknown error"
+            m
         }
     }
 
@@ -438,9 +447,14 @@ class JarvisAccessibilityService : AccessibilityService() {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             startActivity(intent)
-            mapOf<String, Any>("success" to true)
+            val m = HashMap<String, Any>()
+            m["success"] = true
+            m
         } catch (e: Exception) {
-            mapOf<String, Any>("success" to false, "error" to e.message ?: "Unknown error")
+            val m = HashMap<String, Any>()
+            m["success"] = false
+            m["error"] = e.message ?: "Unknown error"
+            m
         }
     }
 }
