@@ -1,0 +1,66 @@
+name: Build JARVIS APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'jarvis_flutter/**'
+  workflow_dispatch:  # Manuell auslösbar
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: jarvis_flutter
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.4'
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter Doctor
+        run: flutter doctor -v
+
+      - name: Create .env with API Key
+        run: |
+          if [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
+            echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" > .env
+          else
+            echo "OPENAI_API_KEY=sk-dein-openai-api-key-hier" > .env
+          fi
+          echo "✅ .env created"
+
+      - name: Get Dependencies
+        run: flutter pub get
+
+      - name: Build Release APK
+        run: flutter build apk --release
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-release-apk
+          path: jarvis_flutter/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
+      - name: Build Split APKs (per ABI)
+        run: flutter build apk --release --split-per-abi
+
+      - name: Upload Split APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-split-apks
+          path: |
+            jarvis_flutter/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+            jarvis_flutter/build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+            jarvis_flutter/build/app/outputs/flutter-apk/app-x86_64-release.apk
+          if-no-files-found: warn
