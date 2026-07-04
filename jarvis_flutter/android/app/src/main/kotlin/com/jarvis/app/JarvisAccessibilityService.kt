@@ -156,14 +156,14 @@ class JarvisAccessibilityService : AccessibilityService() {
      * Find and click a UI element by its visible text.
      */
     private fun clickByText(text: String): Map<String, Any> {
-        val root = rootInActiveWindow ?: return mapOf("success" to false, "error" to "No active window")
+        val root = rootInActiveWindow ?: return mapOf<String, Any>("success" to false, "error" to "No active window")
         val nodes = root.findAccessibilityNodeInfosByText(text)
         for (node in nodes) {
             if (node.isClickable) {
                 node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 node.recycle()
                 root.recycle()
-                return mapOf("success" to true)
+                return mapOf<String, Any>("success" to true)
             }
             // Try parent if not clickable
             var parent = node.parent
@@ -173,7 +173,7 @@ class JarvisAccessibilityService : AccessibilityService() {
                     parent.recycle()
                     node.recycle()
                     root.recycle()
-                    return mapOf("success" to true)
+                    return mapOf<String, Any>("success" to true)
                 }
                 val grandParent = parent.parent
                 if (grandParent != null) {
@@ -183,25 +183,25 @@ class JarvisAccessibilityService : AccessibilityService() {
             }
         }
         root.recycle()
-        return mapOf("success" to false, "error" to "Element '$text' not found")
+        return mapOf<String, Any>("success" to false, "error" to "Element '$text' not found")
     }
 
     /**
      * Click an element by its view ID resource name.
      */
     private fun clickById(id: String): Map<String, Any> {
-        val root = rootInActiveWindow ?: return mapOf("success" to false, "error" to "No active window")
+        val root = rootInActiveWindow ?: return mapOf<String, Any>("success" to false, "error" to "No active window")
         val nodes = findNodesById(root, id)
         for (node in nodes) {
             if (node.isClickable) {
                 node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 node.recycle()
                 root.recycle()
-                return mapOf("success" to true)
+                return mapOf<String, Any>("success" to true)
             }
         }
         root.recycle()
-        return mapOf("success" to false, "error" to "Element with id '$id' not found")
+        return mapOf<String, Any>("success" to false, "error" to "Element with id '$id' not found")
     }
 
     private fun findNodesById(node: AccessibilityNodeInfo, id: String): List<AccessibilityNodeInfo> {
@@ -221,18 +221,18 @@ class JarvisAccessibilityService : AccessibilityService() {
      * Click an element by its content description.
      */
     private fun clickByContentDescription(description: String): Map<String, Any> {
-        val root = rootInActiveWindow ?: return mapOf("success" to false, "error" to "No active window")
+        val root = rootInActiveWindow ?: return mapOf<String, Any>("success" to false, "error" to "No active window")
         val nodes = findNodesByContentDescription(root, description)
         for (node in nodes) {
             if (node.isClickable) {
                 node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 node.recycle()
                 root.recycle()
-                return mapOf("success" to true)
+                return mapOf<String, Any>("success" to true)
             }
         }
         root.recycle()
-        return mapOf("success" to false, "error" to "Element with description '$description' not found")
+        return mapOf<String, Any>("success" to false, "error" to "Element with description '$description' not found")
     }
 
     private fun findNodesByContentDescription(node: AccessibilityNodeInfo, desc: String): List<AccessibilityNodeInfo> {
@@ -252,10 +252,10 @@ class JarvisAccessibilityService : AccessibilityService() {
      * Type text into the currently focused element using ACTION_SET_TEXT.
      */
     private fun typeTextOnFocused(text: String): Map<String, Any> {
-        val root = rootInActiveWindow ?: return mapOf("success" to false, "error" to "No active window")
+        val root = rootInActiveWindow ?: return mapOf<String, Any>("success" to false, "error" to "No active window")
         val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: run {
             root.recycle()
-            return mapOf("success" to false, "error" to "No focused input field")
+            return mapOf<String, Any>("success" to false, "error" to "No focused input field")
         }
         
         val args = Bundle()
@@ -263,7 +263,7 @@ class JarvisAccessibilityService : AccessibilityService() {
         val success = focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
         focused.recycle()
         root.recycle()
-        return mapOf("success" to success)
+        return mapOf<String, Any>("success" to success)
     }
 
     /**
@@ -273,17 +273,17 @@ class JarvisAccessibilityService : AccessibilityService() {
         // First copy to clipboard
         setClipboard(text)
         
-        val root = rootInActiveWindow ?: return mapOf("success" to false, "error" to "No active window")
+        val root = rootInActiveWindow ?: return mapOf<String, Any>("success" to false, "error" to "No active window")
         val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: run {
             root.recycle()
-            return mapOf("success" to false, "error" to "No focused input field")
+            return mapOf<String, Any>("success" to false, "error" to "No focused input field")
         }
         
         // Try ACTION_PASTE
         val success = focused.performAction(AccessibilityNodeInfo.ACTION_PASTE)
         focused.recycle()
         root.recycle()
-        return mapOf("success" to success)
+        return mapOf<String, Any>("success" to success)
     }
 
     private fun setClipboard(text: String) {
@@ -308,20 +308,20 @@ class JarvisAccessibilityService : AccessibilityService() {
             }
             else -> null
         }
-        if (actionId == null) return mapOf("success" to false, "error" to "Unknown global action: $action")
+        if (actionId == null) return mapOf<String, Any>("success" to false, "error" to "Unknown global action: $action")
         val success = performGlobalAction(actionId)
-        return mapOf("success" to success)
+        return mapOf<String, Any>("success" to success)
     }
 
     /**
      * Get text content from the current screen.
      */
     private fun getScreenContent(): Map<String, Any> {
-        val root = rootInActiveWindow ?: return mapOf("success" to false, "error" to "No active window", "text" to "")
+        val root = rootInActiveWindow ?: return mapOf<String, Any>("success" to false, "error" to "No active window", "text" to "")
         val textBuilder = StringBuilder()
         extractText(root, textBuilder)
         root.recycle()
-        return mapOf("success" to true, "text" to textBuilder.toString())
+        return mapOf<String, Any>("success" to true, "text" to textBuilder.toString())
     }
 
     private fun extractText(node: AccessibilityNodeInfo, builder: StringBuilder) {
@@ -342,32 +342,32 @@ class JarvisAccessibilityService : AccessibilityService() {
      * Get text from the currently focused input field.
      */
     private fun getFocusedText(): Map<String, Any> {
-        val root = rootInActiveWindow ?: return mapOf("success" to false, "error" to "No active window")
+        val root = rootInActiveWindow ?: return mapOf<String, Any>("success" to false, "error" to "No active window")
         val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: run {
             root.recycle()
-            return mapOf("success" to false, "error" to "No focused input", "text" to "")
+            return mapOf<String, Any>("success" to false, "error" to "No focused input", "text" to "")
         }
         val text = focused.text?.toString() ?: ""
         focused.recycle()
         root.recycle()
-        return mapOf("success" to true, "text" to text)
+        return mapOf<String, Any>("success" to true, "text" to text)
     }
 
     /**
      * Scroll forward/next page.
      */
     private fun scrollForward(): Map<String, Any> {
-        val root = rootInActiveWindow ?: return mapOf("success" to false, "error" to "No active window")
+        val root = rootInActiveWindow ?: return mapOf<String, Any>("success" to false, "error" to "No active window")
         val success = performActionOnScrollable(root, AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD)
         root.recycle()
-        return mapOf("success" to success)
+        return mapOf<String, Any>("success" to success)
     }
 
     private fun scrollBackward(): Map<String, Any> {
-        val root = rootInActiveWindow ?: return mapOf("success" to false, "error" to "No active window")
+        val root = rootInActiveWindow ?: return mapOf<String, Any>("success" to false, "error" to "No active window")
         val success = performActionOnScrollable(root, AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD)
         root.recycle()
-        return mapOf("success" to success)
+        return mapOf<String, Any>("success" to success)
     }
 
     private fun performActionOnScrollable(node: AccessibilityNodeInfo, action: AccessibilityNodeInfo.AccessibilityAction): Boolean {
@@ -393,7 +393,7 @@ class JarvisAccessibilityService : AccessibilityService() {
             .addStroke(GestureDescription.StrokeDescription(path, 0, 50))
             .build()
         val success = dispatchGesture(gesture, null, null)
-        return mapOf("success" to success)
+        return mapOf<String, Any>("success" to success)
     }
 
     /**
@@ -407,7 +407,7 @@ class JarvisAccessibilityService : AccessibilityService() {
             .addStroke(GestureDescription.StrokeDescription(path, 0, 300))
             .build()
         val success = dispatchGesture(gesture, null, null)
-        return mapOf("success" to success)
+        return mapOf<String, Any>("success" to success)
     }
 
     /**
@@ -419,12 +419,12 @@ class JarvisAccessibilityService : AccessibilityService() {
             if (intent != null) {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 startActivity(intent)
-                mapOf("success" to true)
+                mapOf<String, Any>("success" to true)
             } else {
-                mapOf("success" to false, "error" to "App $packageName not installed")
+                mapOf<String, Any>("success" to false, "error" to "App $packageName not installed")
             }
         } catch (e: Exception) {
-            mapOf("success" to false, "error" to e.message ?: "Unknown error")
+            mapOf<String, Any>("success" to false, "error" to e.message ?: "Unknown error")
         }
     }
 
@@ -438,9 +438,9 @@ class JarvisAccessibilityService : AccessibilityService() {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             startActivity(intent)
-            mapOf("success" to true)
+            mapOf<String, Any>("success" to true)
         } catch (e: Exception) {
-            mapOf("success" to false, "error" to e.message ?: "Unknown error")
+            mapOf<String, Any>("success" to false, "error" to e.message ?: "Unknown error")
         }
     }
 }
