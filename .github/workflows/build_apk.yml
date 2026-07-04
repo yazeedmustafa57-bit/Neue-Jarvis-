@@ -28,48 +28,34 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Accept Android Licenses
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          flutter doctor --android-licenses || true
+
       - name: Flutter Doctor
         run: flutter doctor -v
 
-      - name: Create .env with API Key
+      - name: Create .env
         working-directory: jarvis_flutter
         run: |
           if [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
             echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" > .env
           else
-            echo "OPENAI_API_KEY=sk-dein-openai-api-key-hier" > .env
+            echo "OPENAI_API_KEY=sk-placeholder" > .env
           fi
-          echo "✅ .env created"
 
-      - name: Get Dependencies
+      - name: Pub Get
         working-directory: jarvis_flutter
         run: flutter pub get
 
-      - name: Build Release APK
+      - name: Build APK
         working-directory: jarvis_flutter
         run: flutter build apk --release
 
-      - name: Upload Release APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: jarvis-release-apk
           path: jarvis_flutter/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
-
-      - name: Build Split APKs
-        working-directory: jarvis_flutter
-        run: flutter build apk --release --split-per-abi
-
-      - name: Upload Split APKs
-        uses: actions/upload-artifact@v4
-        with:
-          name: jarvis-split-apks-arm64
-          path: jarvis_flutter/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-          if-no-files-found: warn
-
-      - name: Upload Split APKs armeabi
-        uses: actions/upload-artifact@v4
-        with:
-          name: jarvis-split-apks-armeabi
-          path: jarvis_flutter/build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
-          if-no-files-found: warn
