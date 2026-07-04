@@ -63,7 +63,7 @@ class VoiceService {
         await _tts.setSpeechRate(0.45);
         await _tts.setVolume(0.9);
         await _tts.setPitch(1.0);
-        }
+        _ttsReady = true;
 
         // Add TTS completion listener
         _tts.setCompletionHandler(() {
@@ -117,7 +117,9 @@ class VoiceService {
   }
 
   Future<void> startListening() async {
-    if (!_initialized) await initialize();
+    if (!_initialized) {
+      await initialize();
+    }
 
     if (!_initialized) {
       onError?.call('Spracherkennung nicht initialisiert. Mikrofonberechtigung fehlt.');
