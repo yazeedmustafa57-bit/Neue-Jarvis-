@@ -1,11 +1,12 @@
 import 'dart:math';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
-// ─── Optimized Brain Node ─────────────────────────────────────────────
+// ─── Brain Node (mutable fields for perf) ─────────────────────────────
 class BrainNode {
-  final double x, y, z;
-  final double phase, speed, amp;
+  double x = 0, y = 0, z = 0;
+  double phase = 0, speed = 0, amp = 0;
   double px = 0, py = 0;
 
   BrainNode(Random rng) {
@@ -57,7 +58,7 @@ class BrainHologram extends StatefulWidget {
 
 class _BrainHologramState extends State<BrainHologram>
     with SingleTickerProviderStateMixin {
-  static const int _numNodes = 2800; // slightly reduced for perf
+  static const int _numNodes = 2800;
   static const double _connectionDist = 0.40;
 
   late List<BrainNode> _nodes;
@@ -65,8 +66,9 @@ class _BrainHologramState extends State<BrainHologram>
   late int _connectionCount;
   late AnimationController _controller;
 
-  // Pre-allocated projected coordinate buffer (Float64List: [x1, y1, x2, y2, ...])
+  // Pre-allocated projected coordinate buffer
   final Float64List _projBuffer = Float64List(_numNodes * 2);
+  final Float32List _rawPoints = Float32List(_numNodes * 2);
 
   @override
   void initState() {
@@ -82,7 +84,7 @@ class _BrainHologramState extends State<BrainHologram>
   }
 
   void _computeConnections() {
-    // First pass: count how many connections we'll have
+    // First pass: count connections
     int count = 0;
     for (int i = 0; i < _numNodes; i++) {
       final xi = _nodes[i].x, yi = _nodes[i].y, zi = _nodes[i].z;
@@ -95,7 +97,7 @@ class _BrainHologramState extends State<BrainHologram>
         }
       }
     }
-    // Second pass: fill the flat Int32List
+    // Second pass: fill flat Int32List
     _connections = Int32List(count * 2);
     int idx = 0;
     for (int i = 0; i < _numNodes; i++) {
@@ -121,6 +123,12 @@ class _BrainHologramState extends State<BrainHologram>
 
   @override
   Widget build(BuildContext context) {
+    // Copy projected coords into Float32List for drawRawPoints
+    for (int i = 0; i < _numNodes; i++) {
+      _rawPoints[i * 2] = _projBuffer[i * 2];
+      _rawPoints[i * 2 + 1] = _projBuffer[i * 2 + 1];
+    }
+
     return RepaintBoundary(
       child: CustomPaint(
         painter: _BrainPainter(
@@ -128,6 +136,7 @@ class _BrainHologramState extends State<BrainHologram>
           connections: _connections,
           connectionCount: _connectionCount,
           projBuffer: _projBuffer,
+          rawPoints: _rawPoints,
           time: DateTime.now().millisecondsSinceEpoch / 1000,
         ),
         size: Size.infinite,
@@ -142,6 +151,7 @@ class _BrainPainter extends CustomPainter {
   final Int32List connections;
   final int connectionCount;
   final Float64List projBuffer;
+  final Float32List rawPoints;
   final double time;
 
   _BrainPainter({
@@ -149,12 +159,13 @@ class _BrainPainter extends CustomPainter {
     required this.connections,
     required this.connectionCount,
     required this.projBuffer,
+    required this.rawPoints,
     required this.time,
   });
 
-  // ── Static pre-allocated paints (ZERO allocations per frame) ──────
+  // ── Static pre-allocated paints ────────────────────────────────────
   static final Paint _bgPaint = Paint();
-  static final Paint _connPaintProto = Paint()..strokeWidth = 0.6;
+  static final Paint _connPaint = Paint()..strokeWidth = 0.6;
   static final Paint _glowPaint = Paint()
     ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
   static final Paint _corePaint = Paint();
@@ -198,16 +209,13 @@ class _BrainPainter extends CustomPainter {
     final maxScreenDist = size.shortestSide * 0.35;
     final maxScreenDistSq = maxScreenDist * maxScreenDist;
 
-    // ── Step 1: Project all nodes into the Float64List buffer ───────
+    // ── Step 1: Project nodes ──────────────────────────────────────
     for (int i = 0; i < nodes.length; i++) {
       final n = nodes[i];
-      // Y-axis rotation
       final x1 = n.x * cosR - n.z * sinR;
       final z1 = n.x * sinR + n.z * cosR;
-      // Bob
       final bob = sin(time * n.speed + n.phase) * n.amp;
       final y2 = n.y + bob;
-      // Perspective projection
       final persp = 3.0 / (3.0 + z1);
       n.px = centerX + x1 * scale * persp;
       n.py = centerY - y2 * scale * persp;
@@ -215,16 +223,12 @@ class _BrainPainter extends CustomPainter {
       projBuffer[i * 2 + 1] = n.py;
     }
 
-    // ── Step 2: Draw background (shader cached) ─────────────────────
+    // ── Step 2: Background (cached shader) ────────────────────────
     _ensureShaders(size);
     _bgPaint.shader = _bgShader;
     canvas.drawRect(Offset.zero & size, _bgPaint);
 
-    // ── Step 3: Draw connections (batched by alpha group) ────────────
-    // Use squared-distance comparison to avoid sqrt for culled lines.
-    // For lines that pass, compute alpha and batch into 4 intensity groups.
-    final lines = <_BatchLine>[];
-
+    // ── Step 3: Connections (batched) ──────────────────────────────
     for (int i = 0; i < connectionCount; i++) {
       final i1 = connections[i * 2];
       final i2 = connections[i * 2 + 1];
@@ -232,78 +236,41 @@ class _BrainPainter extends CustomPainter {
       final dy = projBuffer[i1 * 2 + 1] - projBuffer[i2 * 2 + 1];
       final distSq = dx * dx + dy * dy;
       if (distSq < maxScreenDistSq) {
-        final alpha = ((1.0 - sqrt(distSq) / maxScreenDist) * 120)
+        final alpha = ((1.0 - sqrt(distSq) / maxScreenDist) * 100)
             .toInt()
-            .clamp(10, 120);
-        lines.add(_BatchLine(i1, i2, alpha));
-      }
-    }
-
-    // Sort by alpha group, then batch draw
-    lines.sort((a, b) => a.alpha - b.alpha);
-    int batchStart = 0;
-    while (batchStart < lines.length) {
-      final baseAlpha = lines[batchStart].alpha;
-      int batchEnd = batchStart + 1;
-      while (batchEnd < lines.length &&
-          (lines[batchEnd].alpha - baseAlpha).abs() <= 15) {
-        batchEnd++;
-      }
-      // Average alpha for this batch
-      final avgAlpha = baseAlpha; // use the lowest for consistency
-      _connPaintProto.color = Color.fromARGB(avgAlpha, 255, 120, 30);
-      for (int k = batchStart; k < batchEnd; k++) {
-        final l = lines[k];
+            .clamp(20, 100);
+        _connPaint.color = Color.fromARGB(alpha, 255, 120, 30);
         canvas.drawLine(
-          Offset(projBuffer[l.i1 * 2], projBuffer[l.i1 * 2 + 1]),
-          Offset(projBuffer[l.i2 * 2], projBuffer[l.i2 * 2 + 1]),
-          _connPaintProto,
+          Offset(projBuffer[i1 * 2], projBuffer[i1 * 2 + 1]),
+          Offset(projBuffer[i2 * 2], projBuffer[i2 * 2 + 1]),
+          _connPaint,
         );
       }
-      batchStart = batchEnd;
     }
 
-    // ── Step 4: Draw nodes as points (batch via drawRawPoints) ──────
-    // We draw all nodes at once using Offset points
-    final rawPoints = Float64List(nodes.length * 2);
-    for (int i = 0; i < nodes.length; i++) {
-      rawPoints[i * 2] = projBuffer[i * 2];
-      rawPoints[i * 2 + 1] = projBuffer[i * 2 + 1];
-    }
-
-    // Core points (bright orange) — use drawRawPoints for GL batching
+    // ── Step 4: Core points (batch via drawRawPoints) ────────────
     _corePaint.color = const Color.fromRGBO(255, 170, 50, 200);
-    canvas.drawRawPoints(PointMode.points, rawPoints, _corePaint);
+    canvas.drawRawPoints(ui.PointMode.points, rawPoints, _corePaint);
 
-    // ── Step 5: Draw glow for each node ─────────────────────────────
-    // For performance, we reduce glow count by drawing glow only for
-    // "active" nodes (those with more depth = closer to viewer)
-    _glowPaint.color = const Color.fromRGBO(255, 140, 30, 50);
+    // ── Step 5: Glow for closer nodes ─────────────────────────────
+    _glowPaint.color = const Color.fromRGBO(255, 140, 30, 40);
     for (int i = 0; i < nodes.length; i++) {
       final n = nodes[i];
       final depth = (1.0 - (n.z + 2.0) / 4.0).clamp(0.0, 1.0);
-      if (depth > 0.3) {
-        // Only draw glow for closer nodes
-        final glowRadius = (1.2 + depth * 2.0) * 2.5;
+      if (depth > 0.35) {
         canvas.drawCircle(
           Offset(n.px, n.py),
-          glowRadius,
+          1.2 + depth * 3.0,
           _glowPaint,
         );
       }
     }
 
-    // ── Step 6: Central glow overlay ────────────────────────────────
+    // ── Step 6: Center glow overlay ──────────────────────────────
     _centerPaint.shader = _centerShader;
     canvas.drawRect(Offset.zero & size, _centerPaint);
   }
 
   @override
   bool shouldRepaint(_BrainPainter oldDelegate) => true;
-}
-
-// Helper for batching connection lines
-class _BatchLine {
-  final int i1, i2, alpha;
-  const _BatchLine(this.i1, this.i2, this.alpha);
 }

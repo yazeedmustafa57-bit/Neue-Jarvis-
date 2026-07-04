@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/jarvis_provider.dart';
 import '../widgets/brain_hologram.dart';
 import '../models/chat_message.dart';
+import '../core/voice_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
