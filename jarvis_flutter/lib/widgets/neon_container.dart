@@ -46,11 +46,11 @@ class _NeonContainerState extends State<NeonContainer>
           height: widget.height,
           decoration: BoxDecoration(
             border: Border.all(
-              color: Color.fromRGBO(255, 120, 20, (80 * opacity).toInt()),
+              color: Color.fromRGBO(255, 120, 20, 0.3 * opacity),
               width: 1.0,
             ),
             borderRadius: BorderRadius.circular(4.0),
-            color: const Color.fromRGBO(0, 0, 0, 160),
+            color: const Color.fromRGBO(0, 0, 0, 0.6),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -60,11 +60,10 @@ class _NeonContainerState extends State<NeonContainer>
                   padding: const EdgeInsets.symmetric(
                       horizontal: 8.0, vertical: 4.0),
                   decoration: BoxDecoration(
-                    color: const Color.fromRGBO(255, 120, 20, 30),
+                    color: const Color.fromRGBO(255, 120, 20, 0.1),
                     border: Border(
                       bottom: BorderSide(
-                        color: Color.fromRGBO(
-                            255, 120, 20, (60 * opacity).toInt()),
+                        color: Color.fromRGBO(255, 120, 20, 0.2 * opacity),
                         width: 1.0,
                       ),
                     ),
@@ -72,7 +71,7 @@ class _NeonContainerState extends State<NeonContainer>
                   child: Text(
                     widget.title!,
                     style: TextStyle(
-                      color: Color.fromRGBO(255, 140, 30, (200 * opacity).toInt()),
+                      color: Color.fromRGBO(255, 140, 30, 0.8 * opacity),
                       fontSize: 14.0,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'Courier',
