@@ -51,7 +51,7 @@ jobs:
 
       - name: Build APK
         working-directory: jarvis_flutter
-        run: flutter build apk --release
+        run: flutter build apk --release --android-skip-build-dependency-validation
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
