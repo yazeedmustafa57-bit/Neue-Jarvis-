@@ -9,11 +9,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.2
 
   # Voice
   speech_to_text: ^6.6.0
-  flutter_tts: ^4.0.0
+  flutter_tts: ^3.8.0
 
   # Database
   sqflite: ^2.3.0
@@ -24,7 +23,7 @@ dependencies:
   flutter_dotenv: ^5.1.0
 
   # Android Intents
-  android_intent_plus: ^5.0.0
+  android_intent_plus: ^4.0.0
 
   # State management
   provider: ^6.0.0
@@ -32,7 +31,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0
+  flutter_lints: ^3.0.0
 
 flutter:
   uses-material-design: true
