@@ -4,12 +4,12 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.1.0 <4.0.0'
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.6
+  cupertino_icons: ^1.0.2
 
   # Voice
   speech_to_text: ^6.6.0
@@ -17,25 +17,22 @@ dependencies:
 
   # Database
   sqflite: ^2.3.0
-  path: ^1.9.0
+  path: ^1.8.0
 
   # AI / HTTP
-  http: ^1.2.0
+  http: ^1.1.0
   flutter_dotenv: ^5.1.0
 
   # Android Intents
   android_intent_plus: ^5.0.0
 
   # State management
-  provider: ^6.1.0
-
-  # UUID for IDs
-  uuid: ^4.3.0
+  provider: ^6.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
+  flutter_lints: ^4.0.0
 
 flutter:
   uses-material-design: true

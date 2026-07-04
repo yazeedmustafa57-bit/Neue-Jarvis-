@@ -5,25 +5,26 @@ on:
     branches: [main]
     paths:
       - 'jarvis_flutter/**'
-  workflow_dispatch:  # Manuell auslösbar
+  workflow_dispatch:
 
 jobs:
   build:
     name: Build APK
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: jarvis_flutter
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.27.4'
           channel: 'stable'
           cache: true
 
@@ -31,6 +32,7 @@ jobs:
         run: flutter doctor -v
 
       - name: Create .env with API Key
+        working-directory: jarvis_flutter
         run: |
           if [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
             echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" > .env
@@ -40,27 +42,34 @@ jobs:
           echo "✅ .env created"
 
       - name: Get Dependencies
+        working-directory: jarvis_flutter
         run: flutter pub get
 
       - name: Build Release APK
+        working-directory: jarvis_flutter
         run: flutter build apk --release
 
-      - name: Upload APK Artifact
+      - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
           name: jarvis-release-apk
           path: jarvis_flutter/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
 
-      - name: Build Split APKs (per ABI)
+      - name: Build Split APKs
+        working-directory: jarvis_flutter
         run: flutter build apk --release --split-per-abi
 
       - name: Upload Split APKs
         uses: actions/upload-artifact@v4
         with:
-          name: jarvis-split-apks
-          path: |
-            jarvis_flutter/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-            jarvis_flutter/build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
-            jarvis_flutter/build/app/outputs/flutter-apk/app-x86_64-release.apk
+          name: jarvis-split-apks-arm64
+          path: jarvis_flutter/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          if-no-files-found: warn
+
+      - name: Upload Split APKs armeabi
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-split-apks-armeabi
+          path: jarvis_flutter/build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
           if-no-files-found: warn
