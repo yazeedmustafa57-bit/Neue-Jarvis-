@@ -8,6 +8,8 @@ import '../core/database_service.dart';
 import '../core/ai_service.dart';
 import '../core/voice_service.dart';
 import '../core/app_launcher.dart';
+import '../core/task_executor.dart';
+import '../core/accessibility_service.dart';
 
 class JarvisProvider extends ChangeNotifier {
   // ── State ──────────────────────────────────────────────────────────
@@ -17,6 +19,7 @@ class JarvisProvider extends ChangeNotifier {
   final VoiceService voiceService = VoiceService();
   bool _voiceActive = false;
   bool _initialized = false;
+  bool _accessibilityEnabled = false;
   String _statusMessage = '';
   DateTime _startTime = DateTime.now();
 
@@ -26,6 +29,7 @@ class JarvisProvider extends ChangeNotifier {
   List<ChatMessage> get messages => _messages;
   bool get voiceActive => _voiceActive;
   bool get initialized => _initialized;
+  bool get accessibilityEnabled => _accessibilityEnabled;
   String get statusMessage => _statusMessage;
   String get uptime {
     final diff = DateTime.now().difference(_startTime);
@@ -41,6 +45,7 @@ class JarvisProvider extends ChangeNotifier {
 
       // Wire up voice callbacks
       voiceService.onCommand = _onVoiceCommand;
+      voiceService.onComplexCommand = _onComplexVoiceCommand;
       voiceService.onError = (error) {
         addSystemMessage('⚠️ Sprachfehler: $error');
         notifyListeners();
@@ -50,11 +55,17 @@ class JarvisProvider extends ChangeNotifier {
         notifyListeners();
       };
 
+      // Check accessibility service
+      _accessibilityEnabled = await AccessibilityService.isServiceEnabled();
+
       await refreshTasks();
       await refreshReminders();
       _initialized = true;
       _statusMessage = 'System ONLINE';
-      addSystemMessage('JARVIS v1.0 gestartet. Bereit für Befehle.');
+      addSystemMessage('🚀 JARVIS v2.0 — Autonomer Assistent aktiviert.');
+      if (!_accessibilityEnabled) {
+        addSystemMessage('ℹ️ Accessibility Service nicht aktiv. Für Automation: Einstellungen → Bedienungshilfen → JARVIS aktivieren.');
+      }
       notifyListeners();
     } catch (e) {
       _statusMessage = 'Fehler: $e';
@@ -63,31 +74,79 @@ class JarvisProvider extends ChangeNotifier {
     }
   }
 
+  // ─── Accessibility ─────────────────────────────────────────────────
+  Future<void> requestAccessibilityPermission() async {
+    await AccessibilityService.requestPermission();
+    addSystemMessage('⚙️ Accessibility-Einstellungen geöffnet. Bitte JARVIS dort aktivieren.');
+    notifyListeners();
+  }
+
+  Future<void> checkAccessibilityStatus() async {
+    _accessibilityEnabled = await AccessibilityService.isServiceEnabled();
+    if (_accessibilityEnabled) {
+      addSystemMessage('✅ Accessibility Service aktiv — Vollautomation bereit!');
+    }
+    notifyListeners();
+  }
+
   // ── Voice ──────────────────────────────────────────────────────────
   void _onVoiceCommand(String action) {
     if (action == 'shutdown') {
       stopVoice();
       addSystemMessage('🔄 JARVIS wird beendet. Tschüss!');
       voiceService.speak('JARVIS wird beendet. Tschüss!');
-      // Delay shutdown to let TTS finish
       Future.delayed(const Duration(seconds: 3), () {
         SystemNavigator.pop();
       });
       return;
     }
-
     final responses = {
       'youtube': 'Öffne YouTube.',
       'google': 'Öffne Google.',
       'chrome': 'Starte Chrome.',
       'discord': 'Öffne Discord.',
       'spotify': 'Öffne Spotify.',
-      'notepad': 'Öffne Notepad.',
+      'whatsapp': 'Öffne WhatsApp.',
+      'telegram': 'Öffne Telegram.',
+      'settings': 'Öffne Einstellungen.',
+      'wifi': 'Öffne WLAN.',
+      'bluetooth': 'Öffne Bluetooth.',
+      'back': 'Gehe zurück.',
+      'home': 'Gehe zur Startseite.',
+      'notifications': 'Öffne Benachrichtigungen.',
     };
     final reply = responses[action] ?? 'Befehl ausgeführt.';
-    addSystemMessage('🎤 Befehl erkannt: ${action.toUpperCase()}');
+    addSystemMessage('🎤 Befehl: ${action.toUpperCase()}');
     voiceService.speak(reply);
-    AppLauncher.execute(action);
+
+    if (action == 'back') {
+      AccessibilityService.goBack();
+    } else if (action == 'home') {
+      AccessibilityService.goHome();
+    } else if (action == 'notifications') {
+      AccessibilityService.openNotifications();
+    } else {
+      AppLauncher.execute(action);
+    }
+  }
+
+  /// Handle complex multi-step voice commands via TaskExecutor
+  void _onComplexVoiceCommand(String command) {
+    addSystemMessage('🔍 Analysiere: "$command"');
+    voiceService.speak('Analysiere Befehl.');
+
+    // Run task executor
+    TaskExecutor.execute(command).then((result) {
+      if (result.success) {
+        addSystemMessage('✅ ${result.message}');
+        voiceService.speak(result.message);
+      } else {
+        // Fallback: try AI
+        addSystemMessage('🤔 Komplexer Befehl — frage KI.');
+        askAi(command);
+      }
+      notifyListeners();
+    });
   }
 
   Future<void> toggleVoice() async {
@@ -103,7 +162,7 @@ class JarvisProvider extends ChangeNotifier {
         if (_voiceActive) {
           addSystemMessage('🎤 Sprachsteuerung aktiv. Sage einen Befehl!');
         } else if (voiceService.state == VoiceState.noPermission) {
-          addSystemMessage('⚠️ Keine Mikrofonberechtigung. Bitte in den App-Einstellungen erlauben.');
+          addSystemMessage('⚠️ Keine Mikrofonberechtigung.');
         } else {
           addSystemMessage('⚠️ Sprachsteuerung konnte nicht aktiviert werden.');
         }
@@ -138,7 +197,6 @@ class JarvisProvider extends ChangeNotifier {
       final reply = await AiService.askAi(prompt);
       _messages.removeLast();
       _messages.add(ChatMessage(text: reply, role: MessageRole.assistant));
-      // Speak the response if voice is active
       if (_voiceActive) {
         voiceService.speak(reply);
       }
@@ -148,6 +206,27 @@ class JarvisProvider extends ChangeNotifier {
         text: '⚠️ $e',
         role: MessageRole.assistant,
       ));
+    }
+    notifyListeners();
+  }
+
+  /// Execute a text command (from console or chat)
+  Future<void> executeTextCommand(String command) async {
+    addSystemMessage('⚡ Ausführen: $command');
+    // Try direct commands first
+    for (final entry in VoiceService.directCommands.entries) {
+      if (command.contains(entry.key)) {
+        _onVoiceCommand(entry.value);
+        return;
+      }
+    }
+    // Try task executor
+    final result = await TaskExecutor.execute(command);
+    if (result.success) {
+      addSystemMessage('✅ ${result.message}');
+    } else {
+      // Fallback to AI
+      askAi(command);
     }
     notifyListeners();
   }
@@ -208,16 +287,19 @@ class JarvisProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── Automation ────────────────────────────────────────────────────
+  // ── Console Command ───────────────────────────────────────────────
   Future<String> runCommand(String cmd) async {
-    final action = VoiceService.commands.entries
+    final action = VoiceService.directCommands.entries
         .firstWhere((e) => cmd.contains(e.key),
             orElse: () => MapEntry('', ''))
         .value;
-    if (action.isNotEmpty) {
-      return AppLauncher.execute(action);
+    if (action.isNotEmpty && action != 'shutdown') {
+      await AppLauncher.execute(action);
+      return '✅ $action';
     }
-    return 'Unbekannter Befehl: $cmd';
+    // Try complex execution
+    final result = await TaskExecutor.execute(cmd);
+    return result.success ? '✅ ${result.message}' : '🤖 ${result.message}';
   }
 
   @override

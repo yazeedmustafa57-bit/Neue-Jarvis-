@@ -21,8 +21,10 @@ class VoiceService {
   void Function(String command)? onCommand;
   void Function(String error)? onError;
   void Function(String text)? onResult;
+  void Function(String complexCommand)? onComplexCommand;
 
-  static const Map<String, String> commands = {
+  // Simple direct commands
+  static const Map<String, String> directCommands = {
     'öffne youtube': 'youtube',
     'öffne google': 'google',
     'öffne chrome': 'chrome',
@@ -30,14 +32,21 @@ class VoiceService {
     'öffne spotify': 'spotify',
     'öffne notepad': 'notepad',
     'öffne editor': 'notepad',
+    'öffne whatsapp': 'whatsapp',
+    'öffne telegram': 'telegram',
+    'öffne einstellungen': 'settings',
+    'öffne wifi': 'wifi',
+    'öffne bluetooth': 'bluetooth',
     'beende jarvis': 'shutdown',
     'beenden': 'shutdown',
+    'zurück': 'back',
+    'startseite': 'home',
+    'benachrichtigungen': 'notifications',
   };
 
   Future<void> initialize() async {
     if (_initialized) return;
     try {
-      // Initialize speech recognition
       _initialized = await _speech.initialize(
         onError: (error) {
           debugPrint('Speech error: $error');
@@ -64,11 +73,11 @@ class VoiceService {
         await _tts.setVolume(0.9);
         await _tts.setPitch(1.0);
         _ttsReady = true;
-
-        // Add TTS completion listener
         _tts.setCompletionHandler(() {
-          _state = VoiceState.idle;
-          stateNotifier.value = _state;
+          if (_state == VoiceState.speaking) {
+            _state = VoiceState.idle;
+            stateNotifier.value = _state;
+          }
         });
       } catch (e) {
         debugPrint('TTS init warning: $e');
@@ -78,7 +87,7 @@ class VoiceService {
       if (!_initialized) {
         _state = VoiceState.noPermission;
         stateNotifier.value = _state;
-        onError?.call('Keine Mikrofonberechtigung. Bitte erlaube das Mikrofon in den App-Einstellungen.');
+        onError?.call('Keine Mikrofonberechtigung.');
       }
     } catch (e) {
       debugPrint('Voice init error: $e');
@@ -95,7 +104,6 @@ class VoiceService {
       if (_ttsReady) {
         await _tts.speak(text);
       } else {
-        // Try to re-initialize TTS
         try {
           await _tts.setLanguage('de-DE');
           await _tts.setSpeechRate(0.45);
@@ -103,40 +111,33 @@ class VoiceService {
           await _tts.speak(text);
         } catch (e) {
           debugPrint('TTS speak error: $e');
-          onError?.call('Sprachausgabe nicht verfügbar (TTS Engine fehlt)');
+          onError?.call('Sprachausgabe nicht verfügbar');
           _state = VoiceState.idle;
           stateNotifier.value = _state;
         }
       }
     } catch (e) {
       debugPrint('TTS speak error: $e');
-      onError?.call('Sprachausgabe-Fehler: $e');
       _state = VoiceState.idle;
       stateNotifier.value = _state;
     }
   }
 
   Future<void> startListening() async {
+    if (!_initialized) await initialize();
     if (!_initialized) {
-      await initialize();
-    }
-
-    if (!_initialized) {
-      onError?.call('Spracherkennung nicht initialisiert. Mikrofonberechtigung fehlt.');
+      onError?.call('Spracherkennung nicht initialisiert.');
       return;
     }
-
     if (_isListening) return;
 
-    // Check permission
     final hasPerm = await _speech.hasPermission;
     if (!hasPerm) {
-      // Try to initialize again (this will request permission)
       _initialized = await _speech.initialize();
       if (!_initialized) {
         _state = VoiceState.noPermission;
         stateNotifier.value = _state;
-        onError?.call('Mikrofonberechtigung erforderlich. Bitte in den Einstellungen aktivieren.');
+        onError?.call('Mikrofonberechtigung erforderlich.');
         return;
       }
     }
@@ -153,11 +154,11 @@ class VoiceService {
             debugPrint('Erkannt: $text');
             if (text.isNotEmpty) {
               onResult?.call(text);
-              _processCommand(text);
+              _routeCommand(text);
             }
           }
         },
-        listenFor: const Duration(seconds: 10),
+        listenFor: const Duration(seconds: 15),
         pauseFor: const Duration(seconds: 3),
         localeId: 'de_DE',
         cancelOnError: true,
@@ -183,13 +184,17 @@ class VoiceService {
     stateNotifier.value = _state;
   }
 
-  void _processCommand(String text) {
-    for (final entry in commands.entries) {
+  /// Route command: simple direct or complex multi-step
+  void _routeCommand(String text) {
+    // Check direct commands first
+    for (final entry in directCommands.entries) {
       if (text.contains(entry.key)) {
         onCommand?.call(entry.value);
         return;
       }
     }
+    // Route to complex task executor
+    onComplexCommand?.call(text);
   }
 
   void dispose() {

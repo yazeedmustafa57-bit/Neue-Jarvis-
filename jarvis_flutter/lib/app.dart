@@ -28,6 +28,10 @@ class JarvisApp extends StatelessWidget {
             color: Color.fromRGBO(255, 170, 50, 1),
           ),
         ),
+        tabBarTheme: const TabBarThemeData(
+          labelStyle: TextStyle(fontFamily: 'Courier', fontSize: 10),
+          unselectedLabelStyle: TextStyle(fontFamily: 'Courier', fontSize: 10),
+        ),
       ),
       home: const HomeScreen(),
     );
